@@ -4,25 +4,33 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 
 namespace Valuator.Pages;
 public class SummaryModel : PageModel
 {
+    private readonly IDistributedCache _redis;
     private readonly ILogger<SummaryModel> _logger;
 
-    public SummaryModel(ILogger<SummaryModel> logger)
+    public SummaryModel(ILogger<SummaryModel> logger, IDistributedCache redis)
     {
         _logger = logger;
+        _redis = redis;
     }
 
     public double Rank { get; set; }
     public double Similarity { get; set; }
 
-    public void OnGet(string id)
+    public async Task OnGetAsync(string id)
     {
-        _logger.LogDebug(id);
+        string rankKey = "RANK-" + id;
+        string similarityKey = "SIMILARITY-" + id;
 
-        // TODO: (pa1) проинициализировать свойства Rank и Similarity значениями из БД (Redis)
+        string rankValue = await _redis.GetStringAsync(rankKey);
+        string similarityValue = await _redis.GetStringAsync(similarityKey);
+
+        Rank = double.Parse(rankValue);
+        Similarity = double.Parse(similarityValue);
     }
 }
