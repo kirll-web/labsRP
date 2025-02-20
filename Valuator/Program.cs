@@ -12,19 +12,10 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
 
+        var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+        var redis = ConnectionMultiplexer.Connect(redisConnectionString);
+        builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 
-        // Добавляем Redis
-        builder.Services.AddSingleton<IConnectionMultiplexer>(provider =>
-            ConnectionMultiplexer.Connect("localhost:6379"));
-
-        builder.Services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = "localhost:6379";
-            options.ConfigurationOptions = new ConfigurationOptions {
-                EndPoints = { "localhost:6379" },
-                Ssl = false // Set this to true if your Redis instance can handle connection using SSL
-            };
-        });
 
         // Add services to the container.
         builder.Services.AddRazorPages();

@@ -6,17 +6,18 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Valuator.Pages;
 public class SummaryModel : PageModel
 {
-    private readonly IDistributedCache _redis;
+    private readonly IDatabase _redisDb;
     private readonly ILogger<SummaryModel> _logger;
 
-    public SummaryModel(ILogger<SummaryModel> logger, IDistributedCache redis)
+    public SummaryModel(ILogger<SummaryModel> logger, IConnectionMultiplexer redis)
     {
         _logger = logger;
-        _redis = redis;
+        _redisDb = redis.GetDatabase();
     }
 
     public double Rank { get; set; }
@@ -27,8 +28,8 @@ public class SummaryModel : PageModel
         string rankKey = "RANK-" + id;
         string similarityKey = "SIMILARITY-" + id;
 
-        string rankValue = await _redis.GetStringAsync(rankKey);
-        string similarityValue = await _redis.GetStringAsync(similarityKey);
+        string rankValue = _redisDb.StringGet(rankKey);
+        string similarityValue = _redisDb.StringGet(similarityKey);
 
         Rank = double.Parse(rankValue);
         Similarity = double.Parse(similarityValue);

@@ -1,32 +1,18 @@
-using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
-using System.Text;
-using System.Text.Json;
 
 namespace Valuator.Pages;
 
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
-    private readonly IDistributedCache _redisCache;
-    private readonly IConnectionMultiplexer _redisConnection;
-    private readonly DistributedCacheEntryOptions cacheOptions;
-    ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
-    private readonly IDatabase db;
+    private readonly IDatabase _redisDb;
 
-    public IndexModel(
-        ILogger<IndexModel> logger,
-        IDistributedCache redisCache,
-        IConnectionMultiplexer redisConnection)
+    public IndexModel(ILogger<IndexModel> logger, IConnectionMultiplexer redis)
     {
-        IDatabase db = redis.GetDatabase();
         _logger = logger;
-        _redisCache = redisCache;
-        _redisConnection = redisConnection;
+        _redisDb = redis.GetDatabase();
     }
 
     public async Task<IActionResult> OnPostAsync(string text)
@@ -34,42 +20,38 @@ public class IndexModel : PageModel
         string id = Guid.NewGuid().ToString();
 
         // Сохранение текста
-        await _redisCache.SetStringAsync($"TEXT-EXAMPLE", "EXAMPLE");
-        _logger.LogWarning($"TEXT-{id}");
+       
         // Расчет Rank
         double rank = CalculateRank(text);
-        _redisCache.SetString($"RANK-{id}", rank.ToString());
+        _redisDb.StringSet($"RANK-{id}", rank.ToString());
 
-        double similarity = await CalculateSimilarityAsync(text);
-        _redisCache.SetString($"SIMILARITY-{id}", similarity.ToString());
+        double similarity = CalculateSimilarityAsync(text);
+        _redisDb.StringSet($"SIMILARITY-{id}", similarity.ToString());
+        _redisDb.StringSet($"TEXT-{id}", text != null ? text : "");
 
         return Redirect($"summary?id={id}");
     }
 
-    private async Task<double> CalculateSimilarityAsync(string currentText)
+    private double CalculateSimilarityAsync(string currentText)
     {
-        var db = _redisConnection.GetDatabase();
-        var server = _redisConnection.GetServer("localhost:6379");
+        var keys = _redisDb.Multiplexer.GetServer(_redisDb.Multiplexer.GetEndPoints().First()).Keys(pattern: "TEXT-*");
 
-        var keys = server.Keys(pattern: "TEXT-*");
         foreach (var key in keys)
         {
-            _logger.LogWarning($"{key}");
-            try
+           try
             {
-                var stringValue = await _redisCache.GetStringAsync(key.ToString());
-                if (stringValue != null)
+                var storedText = _redisDb.StringGet(key);
+                if (storedText == currentText)
                 {
-                    _logger.LogWarning($"{stringValue}");
-                    if (currentText == stringValue) return 1.0;
+                    return 1;
                 }
             } catch(Exception ex)
             {
                 continue;
             }
-          
         }
-        return 0.0;
+
+        return 0;
     }
 
     private double CalculateRank(string text)
